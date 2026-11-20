@@ -8,9 +8,10 @@ window.MuvellaUI=(()=>{
  function formData(f){return Object.fromEntries(new FormData(f));}
  function table(headers,rows){return h('div',{class:'table-wrap'},h('table',{},h('thead',{},h('tr',{},headers.map(x=>h('th',{},x)))),h('tbody',{},rows)));}
  function drawer(title,...children){const overlay=h('div',{class:'overlay',onclick:e=>{if(e.target===overlay)overlay.remove();}});const panel=h('section',{class:'drawer',role:'dialog','aria-modal':'true','aria-label':title},h('div',{class:'row between'},h('h2',{},title),button('關閉',()=>overlay.remove())),children);overlay.append(panel);document.body.append(overlay);const close=e=>{if(e.key==='Escape'){overlay.remove();document.removeEventListener('keydown',close);}};document.addEventListener('keydown',close);panel.querySelector('button').focus();return overlay;}
+ function hint(el,example,tip){const i=el.querySelector('input,textarea');if(example&&i&&!['date','datetime-local','checkbox','radio'].includes(i.type))i.placeholder='例：'+example;if(tip)el.append(h('small',{class:'hint'},tip));return el;}
  function router(render,fallback='/'){const run=()=>render(location.hash.slice(1)||fallback);addEventListener('hashchange',run);run();}
  function nodes(children){return children.flat(Infinity).filter(c=>c!==null&&c!==undefined&&c!==false);}
  function append(el,...children){el.append(...nodes(children));}
  function replace(el,...children){el.replaceChildren(...nodes(children));}
- return {h,append,replace,toast,copy,field,select,button,formData,table,drawer,router,money:n=>'NT$ '+Number(n||0).toLocaleString('zh-TW'),loading:()=>h('div',{class:'loading',role:'status'},'資料載入中…')};
+ return {h,hint,append,replace,toast,copy,field,select,button,formData,table,drawer,router,money:n=>'NT$ '+Number(n||0).toLocaleString('zh-TW'),loading:()=>h('div',{class:'loading',role:'status'},'資料載入中…')};
 })();
