@@ -36,6 +36,7 @@ function routes_() {
     adminDashboard: { fn: adminDashboard, auth: true, admin: true },
     adminListProducts: { fn: adminListProducts, auth: true, admin: true },
     adminSaveProduct: { fn: adminSaveProduct, auth: true, admin: true, write: true },
+    adminUploadImage: { fn: function () { return { fileId: 'mock', name: 'mock.jpg', url: 'assets/logo.png' }; }, auth: true, admin: true },
     adminListOrders: { fn: adminListOrders, auth: true, admin: true },
     adminGetOrder: { fn: adminGetOrder, auth: true, admin: true },
     adminUpdateOrderStatus: { fn: adminUpdateOrderStatus, auth: true, admin: true, write: true },

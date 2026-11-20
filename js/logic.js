@@ -433,6 +433,14 @@ var MuvellaLogic = (function () {
     return '';
   }
 
+  /** 雲端硬碟分享連結 → 可直接顯示的圖片網址；其他網址原樣回傳（之後仍要通過 safeImageUrl） */
+  function normalizeImageUrl(u) {
+    var s = cleanText(u);
+    var m = /^https:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=|thumbnail\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/i.exec(s);
+    if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1200';
+    return s;
+  }
+
   /** 後台新增／編輯商品的驗證 */
   function validateProductInput(p) {
     p = p || {};
@@ -462,8 +470,8 @@ var MuvellaLogic = (function () {
       if (!validRatio(r)) errors.push('訂金比例要介於 0 到 1 之間（例如 0.3），或留空用預設');
       out.depositRatio = r;
     }
-    out.imageUrl = cleanText(p.imageUrl);
-    if (out.imageUrl && !safeImageUrl(out.imageUrl)) errors.push('圖片網址要以 https:// 開頭');
+    out.imageUrl = normalizeImageUrl(p.imageUrl);
+    if (out.imageUrl && !safeImageUrl(out.imageUrl)) errors.push('圖片網址要以 https:// 或 assets/ 開頭');
     if (charLength(out.imageUrl) > 500) errors.push('圖片網址太長');
     var limits = { arrivalNote: [100, '預計到貨說明'], pickupNote: [30, '取件限制說明'], description: [500, '公開說明'], note: [500, '備註'], sourcePrice: [60, '幣別與來源參考價'] };
     Object.keys(limits).forEach(function (k) {
@@ -962,6 +970,7 @@ var MuvellaLogic = (function () {
     publicProduct: publicProduct,
     catalogFor: catalogFor,
     safeImageUrl: safeImageUrl,
+    normalizeImageUrl: normalizeImageUrl,
     validateProductInput: validateProductInput,
     // 計價與輸入
     computeOrder: computeOrder,
