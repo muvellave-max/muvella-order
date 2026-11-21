@@ -555,3 +555,7 @@ input::placeholder, textarea::placeholder { color: #9AA3A1; opacity: 1; }
 .price-now.sale { color: var(--rose-text); }
 .sale-chip { font-size: 12px; font-weight: 700; color: var(--rose-text); background: var(--blush); border-radius: 999px; padding: 2px 8px; }
 .price-box { margin: 6px 0 4px; font-size: 20px; }
+/* 沒有管理權限：顯示自己的 LINE 使用者 ID */
+.admin-gate { max-width: 560px; margin: 48px auto; padding: 0 16px; }
+.no-access .row { gap: 10px; align-items: center; }
+.uid { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: var(--sage-soft); color: var(--deep); padding: 8px 10px; border-radius: 8px; word-break: break-all; }
