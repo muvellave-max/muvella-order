@@ -540,3 +540,11 @@ input::placeholder, textarea::placeholder { color: #9AA3A1; opacity: 1; }
 .img-card select { min-height: 36px; padding: 4px 8px; }
 .url-row input { flex: 1; min-width: 0; }
 @media (max-width: 600px) { .vgroup { grid-template-columns: 1fr; } }
+/* 預購清單與加入提示 */
+.added { border-color: var(--sage); background: var(--sage-soft); }
+.added[hidden] { display: none; }
+.cart-line { display: flex; gap: 12px; align-items: flex-start; }
+.cart-thumb { width: 72px; height: 72px; flex: none; object-fit: cover; border-radius: 10px; background: var(--oat); }
+.cart-info { flex: 1; min-width: 0; }
+.cart-info p { margin: 2px 0; }
+.cart-actions { justify-content: space-between; margin-top: 12px; }
