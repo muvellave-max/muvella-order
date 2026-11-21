@@ -548,3 +548,10 @@ input::placeholder, textarea::placeholder { color: #9AA3A1; opacity: 1; }
 .cart-info { flex: 1; min-width: 0; }
 .cart-info p { margin: 2px 0; }
 .cart-actions { justify-content: space-between; margin-top: 12px; }
+/* 價格：原價／特價 */
+.price-tag { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; }
+.price-was { color: var(--grey); font-size: .92em; }
+.price-now { color: var(--deep); font-family: var(--font-en); }
+.price-now.sale { color: var(--rose-text); }
+.sale-chip { font-size: 12px; font-weight: 700; color: var(--rose-text); background: var(--blush); border-radius: 999px; padding: 2px 8px; }
+.price-box { margin: 6px 0 4px; font-size: 20px; }

@@ -345,14 +345,26 @@ var MuvellaLogic = (function () {
   // 顧客選的組合寫成「白 / M」。舊資料「沙色／海藍」（沒有名稱）視為一組。
   var VARIANT_JOIN = ' / ';
 
-  function splitOptions(s) {
+  /** 「S／M／XL+100」→ {options:['S','M','XL'], adds:{XL:100}}；加價寫在選項後面 */
+  function parseOptionList(s) {
     var seen = {};
-    return String(s === undefined || s === null ? '' : s).split(/[／\/,，、]+/).map(function (x) { return cleanText(x); }).filter(function (x) {
-      if (!x || seen[x]) return false;
-      seen[x] = true;
-      return true;
+    var options = [];
+    var adds = {};
+    String(s === undefined || s === null ? '' : s).split(/[／\/,，、]+/).forEach(function (raw) {
+      var t = cleanText(raw);
+      if (!t) return;
+      var add = 0;
+      var m = /^(.*?)\s*[+＋]\s*(\d{1,6})$/.exec(t);
+      if (m && cleanText(m[1])) { t = cleanText(m[1]); add = Number(m[2]); }
+      if (seen[t]) return;
+      seen[t] = true;
+      options.push(t);
+      if (add) adds[t] = add;
     });
+    return { options: options, adds: adds };
   }
+
+  function splitOptions(s) { return parseOptionList(s).options; }
 
   function parseVariantGroups(v) {
     var s = cleanText(v, true);
@@ -360,17 +372,20 @@ var MuvellaLogic = (function () {
     var lines = s.split(/\n|；|;/).map(function (x) { return x.trim(); }).filter(Boolean);
     var named = lines.some(function (l) { return /[：:]/.test(l); });
     if (!named) {
-      var opts = splitOptions(lines.join('／'));
-      return opts.length ? [{ name: '', options: opts }] : [];
+      var one = parseOptionList(lines.join('／'));
+      return one.options.length ? [{ name: '', options: one.options, adds: one.adds }] : [];
     }
     return lines.map(function (l) {
       var i = l.search(/[：:]/);
-      return i < 0 ? { name: '', options: splitOptions(l) } : { name: cleanText(l.slice(0, i)), options: splitOptions(l.slice(i + 1)) };
+      var list = parseOptionList(i < 0 ? l : l.slice(i + 1));
+      return { name: i < 0 ? '' : cleanText(l.slice(0, i)), options: list.options, adds: list.adds };
     }).filter(function (g) { return g.options.length; });
   }
 
   function formatVariantGroups(groups) {
-    return (groups || []).map(function (g) { return (g.name ? g.name + '：' : '') + g.options.join('／'); }).join('\n');
+    return (groups || []).map(function (g) {
+      return (g.name ? g.name + '：' : '') + g.options.map(function (o) { return o + (g.adds && g.adds[o] ? '+' + g.adds[o] : ''); }).join('／');
+    }).join('\n');
   }
 
   function variantCombos(groups) {
@@ -380,6 +395,27 @@ var MuvellaLogic = (function () {
     var out = [];
     groups[0].options.forEach(function (a) { groups[1].options.forEach(function (b) { out.push(a + VARIANT_JOIN + b); }); });
     return out;
+  }
+
+  /** 這個組合要加多少錢（各組選項加價相加） */
+  function variantAddOn(groups, variant) {
+    groups = groups || [];
+    if (!groups.length) return 0;
+    var parts = groups.length > 1 ? String(variant || '').split(VARIANT_JOIN) : [String(variant || '')];
+    var sum = 0;
+    groups.forEach(function (g, i) { var a = g.adds && g.adds[parts[i]]; if (a) sum += toNumber(a, 0); });
+    return sum;
+  }
+
+  function productGroups(product) {
+    product = product || {};
+    if (Array.isArray(product.variantGroups)) return product.variantGroups;
+    return Array.isArray(product.variants) ? [] : parseVariantGroups(product.variants);
+  }
+
+  /** 某個規格組合的實際單價＝商品單價＋加價 */
+  function variantPrice(product, variant) {
+    return toNumber(product && product.price, 0) + variantAddOn(productGroups(product), variant);
   }
 
   /** 回傳顧客可以選的規格清單（兩組時是所有組合） */
@@ -472,6 +508,14 @@ var MuvellaLogic = (function () {
     return { ok: true, reason: '' };
   }
 
+  function priceRange(product) {
+    var base = toNumber(product && product.price, 0);
+    var groups = parseVariantGroups(product && product.variants);
+    var addsList = variantCombos(groups).map(function (v) { return variantAddOn(groups, v); });
+    if (!addsList.length) return [base, base];
+    return [base + Math.min.apply(null, addsList), base + Math.max.apply(null, addsList)];
+  }
+
   /** 給顧客看的商品欄位（不含店家備註、來源價等） */
   function publicProduct(product, settings, now) {
     var ratio = effectiveDepositRatio(product, settings);
@@ -480,6 +524,9 @@ var MuvellaLogic = (function () {
       name: product.name,
       variants: parseVariants(product.variants),
       variantGroups: parseVariantGroups(product.variants),
+      compareAtPrice: toNumber(product.compareAtPrice, 0) > toNumber(product.price, 0) ? toNumber(product.compareAtPrice, 0) : '',
+      priceFrom: priceRange(product)[0],
+      priceTo: priceRange(product)[1],
       price: toNumber(product.price, 0),
       deadline: product.deadline,
       daysLeft: daysUntilDeadline(product.deadline, now),
@@ -537,6 +584,15 @@ var MuvellaLogic = (function () {
     var price = toNumber(p.price, NaN);
     if (!isInt(price) || price <= 0 || price > 1000000) errors.push('單價要是正整數（台幣）');
     out.price = price;
+    var rawCmp = p.compareAtPrice;
+    if (rawCmp === '' || rawCmp === null || rawCmp === undefined) {
+      out.compareAtPrice = '';
+    } else {
+      var cmp = toNumber(rawCmp, NaN);
+      if (!isInt(cmp) || cmp <= 0 || cmp > 1000000) errors.push('原價要是正整數（台幣），不用打逗號');
+      else if (isInt(price) && cmp <= price) errors.push('原價要比單價（售價）高，才會顯示成特價；沒有特價就留空');
+      out.compareAtPrice = cmp;
+    }
     out.deadline = cleanText(p.deadline);
     if (!parseYmd(out.deadline)) errors.push('預購截止日格式要是 YYYY-MM-DD');
     out.startDate = cleanText(p.startDate);
@@ -563,7 +619,7 @@ var MuvellaLogic = (function () {
       var x = parseImageLine(line);
       if (!x) return;
       if (!x.url || charLength(x.raw) > 500) { errors.push('第 ' + (i + 1) + ' 張圖片的網址不正確（要以 https:// 或 assets/ 開頭）'); return; }
-      if (x.tag && colorOptions.indexOf(x.tag) < 0) errors.push('圖片標籤「' + x.tag + '」不是第一組規格的選項');
+      if (x.tag && colorOptions.indexOf(x.tag) < 0) errors.push('圖片標籤「' + x.tag + '」已經不在規格一的選項裡：請到商品圖片把那張的標籤改成「通用」或其他顏色');
       if (!imgSeen[x.url]) { imgSeen[x.url] = true; imgs.push({ tag: x.tag, url: x.url }); }
     });
     if (imgs.length > MAX_IMAGES) errors.push('每個商品最多 ' + MAX_IMAGES + ' 張圖片');
@@ -621,6 +677,7 @@ var MuvellaLogic = (function () {
       }
       var price = toNumber(product.price, NaN);
       if (!isInt(price) || price <= 0) { errors.push('「' + product.name + '」價格尚未設定，暫時不能下單'); return; }
+      price += variantAddOn(productGroups(product), variant);
       var key = pid + '\u0000' + variant;
       if (index[key] !== undefined) {
         merged[index[key]].qty += qty;
@@ -1062,6 +1119,9 @@ var MuvellaLogic = (function () {
     parseVariantGroups: parseVariantGroups,
     formatVariantGroups: formatVariantGroups,
     variantCombos: variantCombos,
+    variantAddOn: variantAddOn,
+    variantPrice: variantPrice,
+    productGroups: productGroups,
     parseImages: parseImages,
     formatImages: formatImages,
     productImages: productImages,
