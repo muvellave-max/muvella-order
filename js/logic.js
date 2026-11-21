@@ -341,16 +341,89 @@ var MuvellaLogic = (function () {
 
   // ───────────────────────── 商品 ─────────────────────────
 
-  function parseVariants(v) {
-    if (Array.isArray(v)) return v.map(function (x) { return cleanText(x); }).filter(Boolean);
-    var s = cleanText(v, true);
-    if (!s) return [];
+  // 規格：最多兩組，試算表裡一組一行，例如「顏色：白／黑」「尺寸：S／M」；
+  // 顧客選的組合寫成「白 / M」。舊資料「沙色／海藍」（沒有名稱）視為一組。
+  var VARIANT_JOIN = ' / ';
+
+  function splitOptions(s) {
     var seen = {};
-    return s.split(/[\n／\/,，、]+/).map(function (x) { return x.trim(); }).filter(function (x) {
+    return String(s === undefined || s === null ? '' : s).split(/[／\/,，、]+/).map(function (x) { return cleanText(x); }).filter(function (x) {
       if (!x || seen[x]) return false;
       seen[x] = true;
       return true;
     });
+  }
+
+  function parseVariantGroups(v) {
+    var s = cleanText(v, true);
+    if (!s) return [];
+    var lines = s.split(/\n|；|;/).map(function (x) { return x.trim(); }).filter(Boolean);
+    var named = lines.some(function (l) { return /[：:]/.test(l); });
+    if (!named) {
+      var opts = splitOptions(lines.join('／'));
+      return opts.length ? [{ name: '', options: opts }] : [];
+    }
+    return lines.map(function (l) {
+      var i = l.search(/[：:]/);
+      return i < 0 ? { name: '', options: splitOptions(l) } : { name: cleanText(l.slice(0, i)), options: splitOptions(l.slice(i + 1)) };
+    }).filter(function (g) { return g.options.length; });
+  }
+
+  function formatVariantGroups(groups) {
+    return (groups || []).map(function (g) { return (g.name ? g.name + '：' : '') + g.options.join('／'); }).join('\n');
+  }
+
+  function variantCombos(groups) {
+    groups = groups || [];
+    if (!groups.length) return [];
+    if (groups.length === 1) return groups[0].options.slice();
+    var out = [];
+    groups[0].options.forEach(function (a) { groups[1].options.forEach(function (b) { out.push(a + VARIANT_JOIN + b); }); });
+    return out;
+  }
+
+  /** 回傳顧客可以選的規格清單（兩組時是所有組合） */
+  function parseVariants(v) {
+    if (Array.isArray(v)) return v.map(function (x) { return cleanText(x); }).filter(Boolean);
+    return variantCombos(parseVariantGroups(v));
+  }
+
+  // 圖片：「更多圖片」欄一行一張，可以在前面加顏色標籤，例如「白｜https://…」；沒標籤＝通用
+  var MAX_IMAGES = 12;
+
+  function parseImageLine(line) {
+    var s = cleanText(line);
+    if (!s) return null;
+    var tag = '';
+    var url = s;
+    var m = /^([^｜|]{1,20})[｜|](.+)$/.exec(s);
+    if (m && !/^(https?:|assets\/)/i.test(m[1].trim())) { tag = cleanText(m[1]); url = cleanText(m[2]); }
+    if (tag === '通用') tag = '';
+    return { tag: tag, raw: url, url: safeImageUrl(normalizeImageUrl(url)) };
+  }
+
+  function parseImages(v) {
+    var seen = {};
+    var out = [];
+    String(v === undefined || v === null ? '' : v).split('\n').forEach(function (line) {
+      var x = parseImageLine(line);
+      if (x && x.url && !seen[x.url]) { seen[x.url] = true; out.push({ tag: x.tag, url: x.url }); }
+    });
+    return out.slice(0, MAX_IMAGES);
+  }
+
+  function formatImages(list) {
+    return (list || []).map(function (x) { return (x.tag ? x.tag + '｜' : '') + x.url; }).join('\n');
+  }
+
+  /** 主圖＋更多圖片（去重） */
+  function productImages(product) {
+    product = product || {};
+    var out = [];
+    var cover = safeImageUrl(normalizeImageUrl(product.imageUrl));
+    if (cover) out.push({ tag: '', url: cover });
+    parseImages(product.images).forEach(function (x) { if (x.url !== cover) out.push(x); });
+    return out.slice(0, MAX_IMAGES);
   }
 
   function parseYesNo(v) {
@@ -406,6 +479,7 @@ var MuvellaLogic = (function () {
       id: product.id,
       name: product.name,
       variants: parseVariants(product.variants),
+      variantGroups: parseVariantGroups(product.variants),
       price: toNumber(product.price, 0),
       deadline: product.deadline,
       daysLeft: daysUntilDeadline(product.deadline, now),
@@ -415,7 +489,8 @@ var MuvellaLogic = (function () {
       depositRatio: ratio,
       depositEstimate: Math.ceil(toNumber(product.price, 0) * ratio),
       description: product.description || '',
-      imageUrl: safeImageUrl(product.imageUrl)
+      imageUrl: (productImages(product)[0] || {}).url || '',
+      images: productImages(product)
     };
   }
 
@@ -448,9 +523,17 @@ var MuvellaLogic = (function () {
     var out = {};
     out.name = cleanText(p.name);
     if (!out.name || charLength(out.name) > 60) errors.push('商品名稱必填，最多 60 字');
-    out.variants = parseVariants(p.variants);
-    if (out.variants.length > 20) errors.push('規格選項最多 20 個');
-    out.variants.forEach(function (v) { if (charLength(v) > 20) errors.push('規格「' + v + '」太長（最多 20 字）'); });
+    var groups = parseVariantGroups(p.variants);
+    if (groups.length > 2) errors.push('規格最多兩組（例如顏色和尺寸）');
+    groups = groups.slice(0, 2);
+    if (groups.length === 2 && (!groups[0].name || !groups[1].name)) errors.push('有兩組規格時，兩組都要有名稱，例如「顏色」和「尺寸」');
+    groups.forEach(function (g) {
+      if (charLength(g.name) > 10) errors.push('規格名稱「' + g.name + '」太長（最多 10 字）');
+      if (g.options.length > 20) errors.push('每組規格最多 20 個選項');
+      g.options.forEach(function (o) { if (charLength(o) > 20) errors.push('規格「' + o + '」太長（最多 20 字）'); });
+    });
+    out.variants = formatVariantGroups(groups);
+    out.variantGroups = groups;
     var price = toNumber(p.price, NaN);
     if (!isInt(price) || price <= 0 || price > 1000000) errors.push('單價要是正整數（台幣）');
     out.price = price;
@@ -473,6 +556,19 @@ var MuvellaLogic = (function () {
     out.imageUrl = normalizeImageUrl(p.imageUrl);
     if (out.imageUrl && !safeImageUrl(out.imageUrl)) errors.push('圖片網址要以 https:// 或 assets/ 開頭');
     if (charLength(out.imageUrl) > 500) errors.push('圖片網址太長');
+    var colorOptions = groups.length ? groups[0].options : [];
+    var imgs = [];
+    var imgSeen = {};
+    String(p.images === undefined || p.images === null ? '' : p.images).split('\n').forEach(function (line, i) {
+      var x = parseImageLine(line);
+      if (!x) return;
+      if (!x.url || charLength(x.raw) > 500) { errors.push('第 ' + (i + 1) + ' 張圖片的網址不正確（要以 https:// 或 assets/ 開頭）'); return; }
+      if (x.tag && colorOptions.indexOf(x.tag) < 0) errors.push('圖片標籤「' + x.tag + '」不是第一組規格的選項');
+      if (!imgSeen[x.url]) { imgSeen[x.url] = true; imgs.push({ tag: x.tag, url: x.url }); }
+    });
+    if (imgs.length > MAX_IMAGES) errors.push('每個商品最多 ' + MAX_IMAGES + ' 張圖片');
+    if (!out.imageUrl && imgs.length) out.imageUrl = imgs[0].url;
+    out.images = formatImages(imgs);
     var limits = { arrivalNote: [100, '預計到貨說明'], pickupNote: [30, '取件限制說明'], description: [500, '公開說明'], note: [500, '備註'], sourcePrice: [60, '幣別與來源參考價'] };
     Object.keys(limits).forEach(function (k) {
       out[k] = cleanText(p[k], k === 'description' || k === 'note');
@@ -963,6 +1059,14 @@ var MuvellaLogic = (function () {
     timelineSteps: timelineSteps,
     // 商品
     parseVariants: parseVariants,
+    parseVariantGroups: parseVariantGroups,
+    formatVariantGroups: formatVariantGroups,
+    variantCombos: variantCombos,
+    parseImages: parseImages,
+    formatImages: formatImages,
+    productImages: productImages,
+    VARIANT_JOIN: VARIANT_JOIN,
+    MAX_IMAGES: MAX_IMAGES,
     parseYesNo: parseYesNo,
     settingsWithDefaults: settingsWithDefaults,
     effectiveDepositRatio: effectiveDepositRatio,

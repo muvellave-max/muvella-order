@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="800" height="800">
+<rect width="400" height="400" fill="#F2E1DF"/>
+<path d="M120 70 L170 50 Q200 78 230 50 L280 70 L330 120 L290 155 L270 140 L270 330 L130 330 L130 140 L110 155 L70 120 Z" fill="#D9C9AE" stroke="#8A7556" stroke-width="4" stroke-linejoin="round"/>
+<path d="M170 50 Q200 92 230 50" fill="none" stroke="#8A7556" stroke-width="4"/>
+<text x="200" y="372" text-anchor="middle" font-family="Poppins, sans-serif" font-size="20" fill="#2C4A53">範例 Tee・燕麥</text>
+</svg>

@@ -5,7 +5,8 @@ const L=MuvellaLogic, KEY='muvella_mock_v1'; let db;
 const clone=x=>JSON.parse(JSON.stringify(x));
 function day(n){return L.formatTaipeiDate(new Date(Date.now()+n*86400000));}
 function seed(){
- const settings=clone(L.DEFAULT_SETTINGS), products=['範例・海岸帆布袋','範例・織紋收納袋','範例・木質香氛','範例・陶瓷杯','範例・截止織品','範例・下架小物'].map((name,i)=>({id:L.formatProductId(i+1),name,variants:'沙色／海藍',price:[1280,680,980,860,550,420][i],depositRatio:i===3?0.3:'',deadline:day(i===4?-2:3+i),startDate:day(-7),status:i===5?'已下架':'收單中',homeDeliveryOnly:i===2,arrivalNote:'預計截止後三至四週抵台',description:'範例商品：為日常留一點旅行的溫度。預購品可能缺貨或延期，買不到會退款。',imageUrl:'',note:'範例後台紀錄',sourcePrice:''}));
+ const settings=clone(L.DEFAULT_SETTINGS), products=['範例・海岸帆布袋','範例・織紋收納袋','範例・木質香氛','範例・陶瓷杯','範例・截止織品','範例・下架小物'].map((name,i)=>({id:L.formatProductId(i+1),name,variants:'沙色／海藍',price:[1280,680,980,860,550,420][i],depositRatio:i===3?0.3:'',deadline:day(i===4?-2:3+i),startDate:day(-7),status:i===5?'已下架':'收單中',homeDeliveryOnly:i===2,arrivalNote:'預計截止後三至四週抵台',description:'範例商品：為日常留一點旅行的溫度。預購品可能缺貨或延期，買不到會退款。',imageUrl:'',images:'',note:'範例後台紀錄',sourcePrice:''}));
+ products.push({id:L.formatProductId(7),name:'範例・素面 Tee',variants:'顏色：白／黑／燕麥\n尺寸：S／M／L／XL',price:890,depositRatio:'',deadline:day(9),startDate:day(-3),status:'收單中',homeDeliveryOnly:false,arrivalNote:'12 月中旬到台灣',description:'範例商品：兩組規格（顏色 × 尺寸）＋每個顏色各自的照片。點顏色會切換到該顏色的圖。',imageUrl:'assets/products/sample-tee-white.svg',images:'白｜assets/products/sample-tee-white.svg\n黑｜assets/products/sample-tee-black.svg\n燕麥｜assets/products/sample-tee-oat.svg\nassets/products/sample-tee-detail.svg',note:'範例：兩組規格',sourcePrice:'JPY 2,990'});
  const customers=Array.from({length:4},(_,i)=>({id:L.formatCustomerId(i+1),name:i===0?'範例小帆':'範例顧客'+(i+1),phone:'0912-000-00'+(i+1),lineUserId:i===0?'U_mock_customer':'U_mock_example_'+i,lineName:'範例稱呼',pickup:'宅配',address:'範例市範例路1號',storeName:'',storeId:'',createdAt:day(-8),lastOrderAt:day(0),doNotContact:false,dataStatus:'正常',note:''}));
  const states=['待付訂金','訂金待對帳','已付訂金','採購中','已採購','回台運送中','抵台待付尾款','已完成'];
  const items=[],history=[],orders=states.map((status,i)=>{const c=customers[i<2?0:1+(i%3)],p=products[i%4],calc=L.computeOrder({items:[{productId:p.id,variant:'沙色',qty:1}],products,settings,pickup:'宅配',now:new Date()}),id=L.formatOrderId(L.taipeiYmd(new Date()),i+1);items.push(...calc.lines.map(l=>({...l,orderId:id,lineStatus:'正常'})));history.push({orderId:id,time:day(-1)+' 12:00',from:'',to:status,by:'範例管理員',note:'範例狀態'});return {id,createdAt:day(-1)+' 12:00',customerId:c.id,name:c.name,phone:c.phone,lineUserId:c.lineUserId,lineName:c.lineName,status,total:calc.total,deposit:calc.deposit,depositPaid:i>1?calc.deposit:0,balance:calc.balanceBeforeShipping,balancePaid:i===7?calc.balanceBeforeShipping:0,shippingFee:0,refund:0,pickup:'宅配',address:c.address,storeName:'',storeId:'',deadline:p.deadline,buyBatch:calc.lines[0].buyBatch,shipBatch:i===5?L.formatShipBatch(day(5)):'',trackingNo:i===7?'EXAMPLE-0001':'',depositLast5:i===1?'12345':'',balanceLast5:'',itemsSummary:L.summarizeItems(calc.lines),customerNote:'範例訂單',adminNote:'',updatedAt:day(0)};});
@@ -36,7 +37,7 @@ function routes_() {
     adminDashboard: { fn: adminDashboard, auth: true, admin: true },
     adminListProducts: { fn: adminListProducts, auth: true, admin: true },
     adminSaveProduct: { fn: adminSaveProduct, auth: true, admin: true, write: true },
-    adminUploadImage: { fn: function () { return { fileId: 'mock', name: 'mock.jpg', url: 'assets/logo.png' }; }, auth: true, admin: true },
+    adminUploadImage: { fn: function () { var pics = ['assets/products/sample-tee-white.svg', 'assets/products/sample-tee-black.svg', 'assets/products/sample-tee-oat.svg', 'assets/products/sample-tee-detail.svg']; db.uploadCount = (db.uploadCount || 0) + 1; return { fileId: 'mock', name: 'mock.jpg', url: pics[(db.uploadCount - 1) % pics.length] }; }, auth: true, admin: true },
     adminListOrders: { fn: adminListOrders, auth: true, admin: true },
     adminGetOrder: { fn: adminGetOrder, auth: true, admin: true },
     adminUpdateOrderStatus: { fn: adminUpdateOrderStatus, auth: true, admin: true, write: true },
@@ -370,7 +371,7 @@ function adminSaveProduct(user, payload) {
   var check = MuvellaLogic.validateProductInput(payload);
   if (!check.ok) throw validationError_(check.errors);
   var v = check.value;
-  v.variants = v.variants.join('／');
+  delete v.variantGroups; // 規格已存成文字（一組一行）
   var nowText = nowText_();
   v.updatedAt = nowText;
   var id = MuvellaLogic.cleanText(payload.id);

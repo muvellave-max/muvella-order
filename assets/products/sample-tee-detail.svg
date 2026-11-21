@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="800" height="800">
+<rect width="400" height="400" fill="#B3C8BE"/>
+<path d="M40 140 Q200 300 360 140 L360 400 L40 400 Z" fill="#FFFFFF" stroke="#2C4A53" stroke-width="5"/>
+<path d="M70 140 Q200 270 330 140" fill="none" stroke="#2C4A53" stroke-width="4" stroke-dasharray="10 8"/>
+<rect x="250" y="250" width="70" height="40" rx="4" fill="#CC9593"/>
+<text x="200" y="80" text-anchor="middle" font-family="Poppins, sans-serif" font-size="22" fill="#2C4A53">範例・領口細節</text>
+</svg>
